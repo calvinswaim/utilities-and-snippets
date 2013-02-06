@@ -1,0 +1,288 @@
+/**
+ * Copyright (c) 2013, Niklas Rosenstein
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * Neither the name of the <ORGANIZATION> nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ *
+ * Description:
+ * This COFFEE source-code implements a single-linked list, optimized
+ * for speed. Uses a combination of iterative and recursive approach.
+ *
+ * State:
+ * Unfinished. Declaration and implementation of getting and setting
+ * item values in the list is missing.
+ */
+
+/**
+ * Error codes.
+ */
+enum {
+    /**
+     * Thrown when an operation could not be done because a list was
+     * empty.
+     * Registered ID at the plugincafe.
+     */
+    ExListEmpty = 1029803
+}
+
+/**
+ * A single node in the list.
+ */
+class ListNode {
+
+public:
+
+    /**
+     * The node's item value.
+     */
+    var value;
+
+    /**
+     * The node next to this node. May be NULL.
+     */
+    var next;
+
+    /**
+     * Initialize the ListNode with it's item value and the node
+     * it will be the preceder of.
+     * @param value The node's value.
+     * @param next The node next to this node. May be NULL.
+     */
+    ListNode(value, next);
+
+    /**
+     * @return TRUE when the node has a following node, FALSE if not.
+     */
+    HasNext();
+
+    /**
+     * Returns the last node in the chain (iteratively!).
+     */
+    GetLast();
+
+}
+
+/**
+ * This class manages a chain of ListNode objects, resulting in a
+ * List.
+ */
+class List {
+
+    /**
+     * Reference to the first node in the list. May be NULL when the
+     * list is empty.
+     */
+    var head;
+
+    /**
+     * Stores the length of the list to minimize overhead when
+     * requesting this information.
+     */
+    var length;
+
+public:
+
+    /**
+     * Initialize an empty list.
+     */
+    List();
+
+    /**
+     * Push an item to the beginning of the list.
+     * @param value The item value.
+     */
+    Prepend(value);
+
+    /**
+     * Push an item to the end of the list.
+     * @param value The item value.
+     */
+    Append(value);
+
+    /**
+     * Removes the first element in the list.
+     * @return The item value that was removed.
+     * @throws ExListEmpty When the list is empty and no element can be
+     * removed.
+     */
+    PopFirst();
+
+    /**
+     * Removes the last element in the list.
+     * @return The item value that was removed.
+     * @throws ExListEmpty When the list is empty and no element can
+     * be removed.
+     */
+    PopLast();
+
+    /**
+     * @return The length of the list.
+     */
+    GetLength();
+
+    /**
+     * Converts the list into a readable string. Tries to invoke the
+     * `ToString()` method, or calls `tostring()` on the value.
+     * @return A string representation of the list.
+     */
+    ToString();
+
+}
+
+//
+// Implementation
+//
+
+ListNode::ListNode(value, next) {
+    this->value = value;
+    this->next = next;
+}
+ListNode::HasNext() {
+    return next != NULL;
+}
+ListNode::GetLast() {
+    var node = this;
+    while (node->next != NULL) {
+        node = node->next;
+    }
+    return node;
+}
+
+List::List() {
+    head = NULL;
+    length = 0;
+}
+List::Prepend(value) {
+    head = new (ListNode, value, head);
+    length++;
+}
+List::Append(value) {
+    var node = new (ListNode, value, NULL);
+    if (head == NULL) {
+        head = node;
+    }
+    else {
+        var last = head->GetLast();
+        last->next = node;
+    }
+    length++;
+}
+List::PopFirst() {
+    if (head == NULL) {
+        throw(ExListEmpty);
+    }
+    
+    var node = head;
+    head = head->next;
+
+    node->next = NULL;
+    length--;
+    return node->value;
+}
+List::PopLast() {
+    var node = NULL;
+    if (head == NULL) {
+        throw(ExListEmpty);
+    }
+    else if (length == 1) {
+        node = head;
+        head = NULL;
+    }
+    else {
+        // Retrieve the node before the last node.
+        var temp = head;
+        while (temp->next->next != NULL) {
+            temp = temp->next;
+        }
+
+        // Remove the last node.
+        node = temp->next;
+        temp->next = NULL;
+    }
+
+    // Decrease length and return value.
+    length--;
+    return node->value;
+}
+List::GetLength() {
+    return length;
+}
+List::ToString() {
+    var str = "[";
+    var node = head;
+    while (node != NULL) {
+
+        // Try to convert the node value to a string.
+        var s = NULL;
+        try {
+            s = node->value->ToString();
+        }
+        catch (ExNotAMember) {
+        }
+        catch (ExNotAMethod) {
+        }
+        catch (ExNotAFunction) {
+        }
+        catch (ExBadType) {
+        }
+
+        // Does not have a ToString() method, use the tostring()
+        // function.
+        if (s == NULL)
+            s = tostring(node->value);
+
+        // Add it to the final string.
+        str += s;
+        if (node->next != NULL) {
+            str += ", ";
+        }
+
+        node = node->next;
+    }
+    return str + "]";
+}
+
+//
+// Main (test)
+//
+
+main(doc, op) {
+    var list = new (List);
+    list->Append(0);
+    list->Append(33);
+    list->Append("Fooo");
+    list->Prepend("Baz!");
+    println(list->ToString());
+    println(list->PopLast());
+    println(list->ToString());
+    println(list->PopFirst());
+    println(list->ToString());
+    println(list->GetLength());
+    println(list->ToString());
+}
+
