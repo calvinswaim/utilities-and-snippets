@@ -38,6 +38,10 @@
  * item values in the list is missing.
  */
 
+//
+// Declaration ----------------------------------------------------------------
+//
+
 /**
  * Error codes.
  */
@@ -146,6 +150,27 @@ public:
     GetLength();
 
     /**
+     * @param index The item index to obtain. Negative indecies will
+     * approach the list from the right-hand side.
+     * @return The element at *index*.
+     * @throws ExOutOfRange When *index* exceeds the lists length.
+     */
+    Get(index);
+
+    /**
+     * @param index The item index. Negative indecies will be approached
+     * from the right-hand side of the list.
+     * @param value The item value.
+     * @throws ExOutOfRange When *index* exceeds the lists length.
+     */
+    Set(index, value);
+
+    /**
+     * @return A `ListIterator` instance for the list.
+     */
+    GetIterator();
+
+    /**
      * Converts the list into a readable string. Tries to invoke the
      * `ToString()` method, or calls `tostring()` on the value.
      * @return A string representation of the list.
@@ -154,8 +179,47 @@ public:
 
 }
 
+/**
+ * This class implements iterating over a chain of ListNode's.
+ */
+class ListIterator {
+
+    var node;
+
+public:
+
+    /**
+     * @param node The node to start iterating from.
+     */
+    ListIterator(node);
+
+    /**
+     * @return Returns the current value.
+     */
+    Current();
+
+    /**
+     * Goes to the next node in the chain.
+     */
+    Next();
+
+    /**
+     * @return FALSE when the iterator reached the end of the node-chain,
+     * TRUE if there are still nodes to iterate over.
+     */
+    End();
+
+}
+
+/**
+ * Tries to convert the passed object to a string by first calling a method
+ * `ToString()` and then `GetName()` on it. If that fails,`the built-in
+ * `tostring()` function is used.
+ */
+ToStr(object);
+
 //
-// Implementation
+// Implementation -------------------------------------------------------------
 //
 
 ListNode::ListNode(value, next) {
@@ -196,7 +260,7 @@ List::PopFirst() {
     if (head == NULL) {
         throw(ExListEmpty);
     }
-    
+
     var node = head;
     head = head->next;
 
@@ -229,18 +293,76 @@ List::PopLast() {
     length--;
     return node->value;
 }
+List::Get(index) {
+    if (index < 0) {
+        index = length - index;
+    }
+    if (index >= length) {
+        throw(ExOutOfRange);
+    }
+    var i;
+    var node = head;
+    for (i=0; i < index; i++) {
+        node = node->next;
+    }
+    return node->value;
+}
+List::Set(index, value) {
+    if (index < 0) {
+        index = length - index;
+    }
+    if (index >= length) {
+        throw(ExOutOfRange);
+    }
+    var i;
+    var node = head;
+    for (i=0; i < index; i++) {
+        node = node->next;
+    }
+    node->value = value;
+}
 List::GetLength() {
     return length;
 }
+List::GetIterator() {
+    return new(ListIterator, head);
+}
 List::ToString() {
     var str = "[";
-    var node = head;
-    while (node != NULL) {
+    var iter = GetIterator();
+    while (TRUE) {
+        var value = iter->Current();
+        str += ToStr(value);
 
-        // Try to convert the node value to a string.
-        var s = NULL;
+        iter->Next();
+        if (!iter->End()) {
+            str += ", ";
+        }
+        else {
+            break;
+        }
+    }
+    return str + "]";
+}
+
+ListIterator::ListIterator(node) {
+    this->node = node;
+}
+ListIterator::Current() {
+    return node->value;
+}
+ListIterator::Next() {
+    node = node->next;
+}
+ListIterator::End() {
+    return node == NULL;
+}
+
+ToStr(object) {
+    var s = NULL;
+    if (s == NULL) {
         try {
-            s = node->value->ToString();
+            s = object->ToString();
         }
         catch (ExNotAMember) {
         }
@@ -250,39 +372,40 @@ List::ToString() {
         }
         catch (ExBadType) {
         }
-
-        // Does not have a ToString() method, use the tostring()
-        // function.
-        if (s == NULL)
-            s = tostring(node->value);
-
-        // Add it to the final string.
-        str += s;
-        if (node->next != NULL) {
-            str += ", ";
-        }
-
-        node = node->next;
     }
-    return str + "]";
+    if (s == NULL) {
+        try {
+            s = object->GetName();
+        }
+        catch (ExNotAMember) {
+        }
+        catch (ExNotAMethod) {
+        }
+        catch (ExNotAFunction) {
+        }
+        catch (ExBadType) {
+        }
+    }
+    if (s == NULL) {
+        s = tostring(s);
+    }
+    return s;
 }
 
 //
-// Main (test)
+// Example --------------------------------------------------------------------
 //
 
 main(doc, op) {
     var list = new (List);
-    list->Append(0);
-    list->Append(33);
-    list->Append("Fooo");
-    list->Prepend("Baz!");
-    println(list->ToString());
-    println(list->PopLast());
-    println(list->ToString());
-    println(list->PopFirst());
-    println(list->ToString());
-    println(list->GetLength());
+    var op = doc->GetFirstObject();
+    while (op) {
+        list->Append(op);
+        op = op->GetNext();
+    }
+
     println(list->ToString());
 }
+
+
 
