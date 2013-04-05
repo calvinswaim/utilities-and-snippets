@@ -1,0 +1,14 @@
+//Remo: SaveAsTemplate with backup.
+
+var startup_path = GeGetStartupWritePath();
+var filename = startup_path->GetClone();
+filename->AddLast("template.c4d");
+
+if( GeFileExist(filename,FALSE) ){
+  var rename = startup_path;
+	rename->AddLast("template_older.c4d");
+	GeFileKill(rename,FALSE);
+	GeFileRename(filename,rename);
+}
+doc->Save(filename);
+println(filename," saved");
