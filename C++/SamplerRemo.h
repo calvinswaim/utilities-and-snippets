@@ -119,7 +119,7 @@ LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *doc, Bas
 	cd.texflag	= TEX_TILE;
 	if (texShader->InitRender(*irs)==LOAD_OK) { TexInit = TRUE; return 0;} 
 	else err = 5;
-Error:
+
 	texShader->FreeRender();
 	return err;
 }
