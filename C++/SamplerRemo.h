@@ -55,6 +55,9 @@ public:
 	//return color at 3D coordinates p, if shader is not 3D then uv will be used.
 	Vector	Sample3D(const Vector &pos3d, const Vector &uv = 0.0, Real time=0.0);
  
+ 	//return average color of the shader
+ 	Vector AverageColor(LONG num_samples = 128);
+ 
 	void Free();
 private:
 	BaseShader			*texShader;
@@ -95,7 +98,7 @@ inline LONG Sampler::Init(TextureTag *textag,LONG chnr,Real time,BaseDocument *d
 	return Init(mat,chnr,time,doc,op);
 }
 //-------------------------------------------------------------------------------------------------
-LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *doc, BaseObject *op)
+inline LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *doc, BaseObject *op)
 {
 	if (!doc || !mat || chnr < 0 || chnr > 12)	return 1;
 	if (!cd.vd	 || !tex || !irs  || !rop)		return 2;
@@ -141,7 +144,7 @@ LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *doc, Bas
 	return err;
 }
 //-------------------------------------------------------------------------------------------------
-Sampler::Sampler()
+inline Sampler::Sampler()
 {
 	texShader		= NULL;
 	TexInit			= FALSE;
@@ -199,18 +202,40 @@ Sampler::Sampler()
 	irs = gNew(InitRenderStruct);
 }
 //-------------------------------------------------------------------------------------------------
-void Sampler::Free()
+inline void Sampler::Free()
 {
 	if (texShader){  if (TexInit) texShader->FreeRender();  }
 	TexInit = FALSE;
 }
 //-------------------------------------------------------------------------------------------------
-Sampler::~Sampler(void)
+inline Sampler::~Sampler(void)
 {
 	Free();
 	if (tex) TexData::Free(tex);
 	if (cd.vd)  VolumeData::Free(cd.vd);
 	FreeRayObject(rop);
 	gDelete(irs);
+}
+//-------------------------------------------------------------------------------------------------
+inline Vector Sampler::AverageColor(LONG num_samples)
+{
+	const LONG random_seed = 43;
+	const Real scale3d = 50.0;
+	
+	Random rnd; rnd.Init(random_seed);
+	Vector ave_color = 0.0;
+	Real cnt = 0.0;
+	
+	Vector pos3d; //3d coordinates for 3D shader.
+	Vector uv; //UVW coordinates for all other shaders.
+	for(LONG i=0; I < num_samples; ++i){
+		uv = Vector(rnd.Get01(),rnd.Get01(),0.0);
+		pos3d = Vector(rnd.Get11(),rnd.Get11(),rnd.Get11()) * scale3d;
+		const Vector color = Sample3D(pos3d, uv);  
+		ave_color += (color - ave_color) / cnt;
+		cnt += 1.0;
+	}
+	
+	return ave_color;
 }
 #endif//_SAMPLER_REMO_H_
