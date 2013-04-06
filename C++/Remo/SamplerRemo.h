@@ -27,10 +27,10 @@
 //   BaseObject *obj = doc->GetActiveObject();  if (!obj) return FALSE;
 //   BaseMaterial *mat = doc->GetFirstMaterial(); if (!mat) return FALSE;  //The material to be sampled
 //   Sampler smpl;
-//   smpl.Init(mat,CHANNEL_COLOR, 0.0, doc, obj);     //Initialize an instance of the Sample class with these items
-//	 Vector pos3d; //3d coordinates for 3D shader.
-//	 Vector uv; //UVW coordinates for all other shaders.
-//	 ... //set here pos3d and uv !!!
+//   const LONG init_res = smpl.Init(mat,CHANNEL_COLOR, 0.0, doc); if(init_res != 0) return FALSE;
+//   Vector pos3d; //3d coordinates for 3D shader.
+//   Vector uv; //UVW coordinates for all other shaders.
+//   ... //set here pos3d and uv !!!
 //   const Vector color = smpl.Sample3D(pos3d, uv);                      
 //=================================================================================================
 #include "c4d_raytrace.h"
