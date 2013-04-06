@@ -116,9 +116,9 @@ inline LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *d
 		rop->rad		= op->GetRad();
 		if (op->IsInstanceOf(Opolygon)){
 			rop->pcnt	= ToPoly(op)->GetPointCount();
-			rop->padr	= GetPointW(ToPoly(op));
+			rop->padr	= ToPoly(op)->GetPointW();
 			rop->vcnt	= ToPoly(op)->GetPolygonCount();
-			rop->vadr	= (RayPolygon*)GetPolygonW(ToPoly(op));
+			rop->vadr	= (RayPolygon*)ToPoly(op)->GetPolygonW();
 			rop->type   = O_POLYGON;
 		}
 	}
@@ -137,7 +137,7 @@ inline LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *d
 	cd.d		= 0.0;
 	cd.n		= Vector(0.0,1.0,0.0);
 	cd.texflag	= TEX_TILE;
-	if (texShader->InitRender(*irs)==LOAD_OK) { TexInit = TRUE; return 0;} 
+	if (texShader->InitRender(*irs)==INITRENDERRESULT_OK) { TexInit = TRUE; return 0;} 
 	else err = 5;
 
 	texShader->FreeRender();
@@ -228,7 +228,7 @@ inline Vector Sampler::AverageColor(LONG num_samples)
 	
 	Vector pos3d; //3d coordinates for 3D shader.
 	Vector uv; //UVW coordinates for all other shaders.
-	for(LONG i=0; I < num_samples; ++i){
+	for(LONG i=0; i < num_samples; ++i){
 		uv = Vector(rnd.Get01(),rnd.Get01(),0.0);
 		pos3d = Vector(rnd.Get11(),rnd.Get11(),rnd.Get11()) * scale3d;
 		const Vector color = Sample3D(pos3d, uv);  
