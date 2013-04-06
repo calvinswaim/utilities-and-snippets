@@ -1,7 +1,7 @@
 // ------------------------------------------------------------------------------------------------
-// AutoPointerPublic.h
-// Printing For C4D
-// Copyright (c) 2003 - 2012 Remotion(Igor Schulz)  http://www.remotion4d.net
+// SamplerRemo.h
+// ShaderSmapler For C4D
+// Copyright (c) 2003 - 2013 Remotion(Igor Schulz)  http://www.remotion4d.net
 // 
 // This software is provided 'as-is', without any express or implied warranty.
 // In no event will the authors be held liable for any damages arising from the use of this software.
@@ -18,9 +18,20 @@
 #ifndef _SAMPLER_REMO_H_
 #define _SAMPLER_REMO_H_
 //=================================================================================================
-//  Remotion (Igor Schulz) 2003 - 2012
+//  Remotion (Igor Schulz) 2003 - 2013
 //	BaseMaterial/Shader Sampler for C4D
-//	First Created:: 17.12.03
+//	Created:: 17.12.03 
+//  Please note this code was created 10 years ago it could be improved a lot.
+//=================================================================================================
+//   BaseDocument *doc = GetActiveDocument();
+//   BaseObject *obj = doc->GetActiveObject();  if (!obj) return FALSE;
+//   BaseMaterial *mat = doc->GetFirstMaterial(); if (!mat) return FALSE;  //The material to be sampled
+//   Sampler smpl;
+//   smpl.Init(mat,CHANNEL_COLOR, 0.0, doc, obj);     //Initialize an instance of the Sample class with these items
+//	 Vector pos3d; //3d coordinates for 3D shader.
+//	 Vector uv; //UVW coordinates for all other shaders.
+//	 ... //set here pos3d and uv !!!
+//   const Vector color = smpl.Sample3D(pos3d, uv);                      
 //=================================================================================================
 #include "c4d_raytrace.h"
 //=================================================================================================
@@ -31,12 +42,18 @@ public:
 	 Sampler();
 	~Sampler();
  
+ 	//init this smapler, always call one of this 2 before everethin else.
 	LONG Init(BaseMaterial *mat ,LONG chnr,Real time,BaseDocument *doc,BaseObject *op=NULL);
 	LONG Init(TextureTag *textag,LONG chnr,Real time,BaseDocument *doc,BaseObject *op=NULL);
  
+ 	//return true if Init was called before.
 	inline Bool IsInit(){ return TexInit; };
+	
+	//return color at UVW coordinates.
 	Vector	SampleUV(const Vector &uv, Real time=0.0);
-	Vector	Sample3D(const Vector &p = 0.0, const Vector &uv = 0.0, Real time=0.0);
+	
+	//return color at 3D coordinates p, if shader is not 3D then uv will be used.
+	Vector	Sample3D(const Vector &pos3d, const Vector &uv = 0.0, Real time=0.0);
  
 	void Free();
 private:
