@@ -75,11 +75,11 @@ public:
 	AutoDelete()						{ ptr = nullptr; }
 #if USING_CPP_11
 	AutoDelete(AutoDelete&& other)		{ Free(); ptr = other.ptr;  other.ptr = nullptr; } // move
+	AutoDelete& operator=(const AutoDelete&& other) { if (this != &other){ Reset(other.Release()); } return (*this); } // assign by moving
 #endif
 	explicit AutoDelete(TYPE *p)		{ ptr = p; }
 	~AutoDelete()						{ Free(); }
 
-	AutoDelete& operator=(const AutoDelete&& other) { if (this != &other){ Reset(other.Release()); } return (*this); } // assign by moving
 
 	template<class ITYPE>
 	void Create()						{ Reset( new ITYPE() ); }
