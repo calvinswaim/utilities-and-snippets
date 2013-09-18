@@ -1,14 +1,9 @@
-Cinema 4D - Collection of Example code
-======================================
+# Cinema 4D API Utilities and Snippets
 
-This is a collection of example code written in C++, Python and COFFEE. All
-code segments in this repository are working examples (if not otherwise
-stated explictly), but are not necessarily complete plugin projects.
+This repository contains crowdsourced code snippets and utility modules for
+use with the Cinema 4D SDK.
 
-License
--------
+### Licensing
 
-The software snippets in the repository may be licensed differently, please
-deduce this from the snippets code or folder (COPYING or LICENSE file, if
-available)
+Please refer to the licensing information in each source file or directory.
 
