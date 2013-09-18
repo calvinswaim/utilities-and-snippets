@@ -1,4 +1,4 @@
-# Cinema 4D API Utilities and Snippets
+# Utilities and Snippets for the Cinema 4D SDK
 
 This repository contains crowdsourced code snippets and utility modules for
 use with the Cinema 4D SDK.
