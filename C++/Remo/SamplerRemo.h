@@ -1,7 +1,7 @@
 // ------------------------------------------------------------------------------------------------
 // SamplerRemo.h
 // ShaderSmapler For C4D
-// Copyright (c) 2003 - 2013 Remotion(Igor Schulz)  http://www.remotion4d.net
+// Copyright (c) 2003 - 2014 Remotion(Igor Schulz)  http://www.remotion4d.net
 // 
 // This software is provided 'as-is', without any express or implied warranty.
 // In no event will the authors be held liable for any damages arising from the use of this software.
@@ -14,7 +14,7 @@
 // 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
 // 3. This notice may not be removed or altered from any source distribution.
 // ------------------------------------------------------------------------------------------------
-
+#pragma once
 #ifndef _SAMPLER_REMO_H_
 #define _SAMPLER_REMO_H_
 //=================================================================================================
@@ -27,13 +27,26 @@
 //   BaseObject *obj = doc->GetActiveObject();  if (!obj) return FALSE;
 //   BaseMaterial *mat = doc->GetFirstMaterial(); if (!mat) return FALSE;  //The material to be sampled
 //   Sampler smpl;
-//   const LONG init_res = smpl.Init(mat,CHANNEL_COLOR, 0.0, doc); if(init_res != 0) return FALSE;
+//   const Int32 init_res = smpl.Init(mat,CHANNEL_COLOR, 0.0, doc); if(init_res != 0) return FALSE;
 //   Vector pos3d; //3d coordinates for 3D shader.
 //   Vector uv; //UVW coordinates for all other shaders.
 //   ... //set here pos3d and uv !!!
 //   const Vector color = smpl.Sample3D(pos3d, uv);                      
 //=================================================================================================
 #include "c4d_raytrace.h"
+#include "ge_sys_math.h"
+
+enum INIT_SAMPLER_RESULT
+{
+	INIT_SAMPLER_RESULT_OK = 0,
+	INIT_SAMPLER_RESULT_WRONG_PARAM = -1,
+	INIT_SAMPLER_RESULT_NO_MATERIAL = -2,
+	INIT_SAMPLER_RESULT_NO_CHANNEL  = -2,
+	INIT_SAMPLER_RESULT_NO_SHADER   = -3,
+	INIT_SAMPLER_RESULT_NO_INITRENDER  = -5,
+
+} ENUM_END_LIST(INIT_SAMPLER_RESULT);
+
 //=================================================================================================
 class Sampler
 //=================================================================================================
@@ -42,38 +55,42 @@ public:
 	 Sampler();
 	~Sampler();
  
- 	//init this smapler, always call one of this 2 before everethin else.
-	LONG Init(BaseMaterial *mat ,LONG chnr,Real time,BaseDocument *doc,BaseObject *op=NULL);
-	LONG Init(TextureTag *textag,LONG chnr,Real time,BaseDocument *doc,BaseObject *op=NULL);
- 
- 	//return true if Init was called before.
+	//init this sampler, always call one of this before everything else.
+	INIT_SAMPLER_RESULT Init(BaseObject *obj,Int32 chnr=CHANNEL_COLOR,Float time=0.0);
+	INIT_SAMPLER_RESULT Init(BaseMaterial *mat ,Int32 chnr,Float time,BaseDocument *doc,BaseObject *op=nullptr);
+	INIT_SAMPLER_RESULT Init(TextureTag *textag,Int32 chnr,Float time,BaseDocument *doc,BaseObject *op=nullptr);
+
+	//return true if Init was called before.
 	inline Bool IsInit(){ return TexInit; };
 	
 	//return color at UVW coordinates.
-	Vector	SampleUV(const Vector &uv, Real time=0.0);
+	Vector	SampleUV(const Vector &uv, Float time=0.0);
 	
 	//return color at 3D coordinates p, if shader is not 3D then uv will be used.
-	Vector	Sample3D(const Vector &pos3d, const Vector &uv = 0.0, Real time=0.0);
+	Vector	Sample3D(const Vector &pos3d, const Vector &uv = Vector(0.0), Float time=0.0);
  
- 	//return average color of the shader
- 	Vector AverageColor(LONG num_samples = 128);
+	//return average color of the shader
+	Vector AverageColor(Int32 num_samples = 128);
  
 	void Free();
 private:
-	BaseShader			*texShader;
-	TexData				*tex;
-	RayObject			*rop;
-	InitRenderStruct	*irs;
+	BaseShader			 *texShader; //NON owning ptr
+	AutoAlloc<VolumeData> vd;  //Owning ptr
+	AutoAlloc<TexData>	  tex; //Owning ptr
+	RayObject			 *rop; //Owning ptr
+
+	InitRenderStruct	irs;
 	ChannelData			cd;
-	Matrix		omg;
-	Real		offsetX;
-	Real		offsetY;
-	Real		lenX;
-	Real		lenY;
-	Bool		TexInit;
+
+	Matrix			omg;
+	Float			offsetX;
+	Float			offsetY;
+	Float			lenX;
+	Float			lenY;
+	Bool			TexInit;
 };
 //-------------------------------------------------------------------------------------------------
-inline Vector Sampler::SampleUV(const Vector &uv, Real time)
+inline Vector Sampler::SampleUV(const Vector &uv, Float time)
 {
 	cd.t		= time;
 	cd.p		= uv;
@@ -82,7 +99,7 @@ inline Vector Sampler::SampleUV(const Vector &uv, Real time)
 	return texShader->Sample(&cd);	
 }
 //-------------------------------------------------------------------------------------------------
-inline Vector Sampler::Sample3D(const Vector &p, const Vector &uv, Real time)
+inline Vector Sampler::Sample3D(const Vector &p, const Vector &uv, Float time)
 {
 	cd.t			= time;
 	cd.vd->p		= p;
@@ -91,28 +108,37 @@ inline Vector Sampler::Sample3D(const Vector &p, const Vector &uv, Real time)
 	return texShader->Sample(&cd);
 }
 //-------------------------------------------------------------------------------------------------
-inline LONG Sampler::Init(TextureTag *textag,LONG chnr,Real time,BaseDocument *doc,BaseObject *op)
+inline INIT_SAMPLER_RESULT Sampler::Init(BaseObject *obj,Int32 chnr,Float time)
 {
-	if(!textag) return 1;
-	BaseMaterial *mat = textag->GetMaterial();if(!mat) return 2;//no Material
+	if(!obj) return INIT_SAMPLER_RESULT_WRONG_PARAM;
+	BaseDocument *doc = obj->GetDocument(); if (!doc) return INIT_SAMPLER_RESULT_WRONG_PARAM;
+	TextureTag* textag = (TextureTag*)obj->GetTag(Ttexture);  if (!textag) return INIT_SAMPLER_RESULT_WRONG_PARAM;
+	BaseMaterial *mat = textag->GetMaterial(); 	if(!mat) return INIT_SAMPLER_RESULT_NO_MATERIAL;//no Material
+	return Init(mat,chnr,time,doc,obj);
+}
+//-------------------------------------------------------------------------------------------------
+inline INIT_SAMPLER_RESULT Sampler::Init(TextureTag *textag,Int32 chnr,Float time,BaseDocument *doc,BaseObject *op)
+{
+	if(!textag) return INIT_SAMPLER_RESULT_WRONG_PARAM;
+	BaseMaterial *mat = textag->GetMaterial(); 	if(!mat) return INIT_SAMPLER_RESULT_NO_MATERIAL;//no Material
 	return Init(mat,chnr,time,doc,op);
 }
 //-------------------------------------------------------------------------------------------------
-inline LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *doc, BaseObject *op)
+inline INIT_SAMPLER_RESULT Sampler::Init(BaseMaterial *mat,Int32 chnr, Float time,BaseDocument *doc, BaseObject *op)
 {
-	if (!doc || !mat || chnr < 0 || chnr > 12)	return 1;
-	if (!cd.vd	 || !tex || !irs  || !rop)		return 2;
+	if (!mat || !doc || chnr < 0 || chnr > 12)	return INIT_SAMPLER_RESULT_WRONG_PARAM;
+	if (!cd.vd	|| !tex || !rop) return INIT_SAMPLER_RESULT_WRONG_PARAM;
 	TexInit = FALSE;
-	LONG			err = 0;
+	INIT_SAMPLER_RESULT	 err = INIT_SAMPLER_RESULT_OK;
 	BaseContainer	chandata;
-	LONG			fps		= doc->GetFps();
+	Int32			fps		= doc->GetFps();
 	Filename		dpath	= doc->GetDocumentPath();
-	BaseChannel *texChan1   = mat->GetChannel(chnr);	if (!texChan1) return 3;//no Channel
-	texShader = texChan1->GetShader(); if(!texShader) return 4;
+	BaseChannel	*texChan1   = mat->GetChannel(chnr); if (!texChan1) return INIT_SAMPLER_RESULT_NO_CHANNEL;//no Channel
+	texShader = texChan1->GetShader(); 	if(!texShader) return INIT_SAMPLER_RESULT_NO_SHADER;
 	if (op){ //Object
 		rop->link		= op;
 		rop->mg			= op->GetMg();
-		rop->mp			= op->GetMp()*op->GetMg();
+		rop->mp			= op->GetMg() * op->GetMp();
 		rop->rad		= op->GetRad();
 		if (op->IsInstanceOf(Opolygon)){
 			rop->pcnt	= ToPoly(op)->GetPointCount();
@@ -125,57 +151,65 @@ inline LONG Sampler::Init(BaseMaterial *mat,LONG chnr, Real time,BaseDocument *d
 	//----------------- TexData -------------------
 	tex->mp			= mat;// Set Material
 	//------------ InitRenderStruct ----------------
-	irs->fps		= fps;
-	irs->time		= BaseTime(time);
-	irs->doc		= doc;
-	irs->docpath	= dpath;
-	irs->vd			= cd.vd;
+	//irs.fps		= fps;
+	//irs.time		= BaseTime(time);
+	//irs.doc		= doc;
+	//irs.docpath	= dpath;
+	irs.Init(doc); //R15 only
+	irs.vd		= cd.vd;
 	//---------------- Sampling ---------------------
 	chandata	= texChan1->GetData();
-	cd.off		= chandata.GetReal(BASECHANNEL_BLUR_OFFSET,0.0);
+	cd.off		= chandata.GetFloat(BASECHANNEL_BLUR_OFFSET,0.0);
 	cd.scale	= 0.0;
-	cd.d		= 0.0;
+	cd.d		= Vector(0.0);
 	cd.n		= Vector(0.0,1.0,0.0);
 	cd.texflag	= TEX_TILE;
-	if (texShader->InitRender(*irs)==INITRENDERRESULT_OK) { TexInit = TRUE; return 0;} 
-	else err = 5;
-
+	if (texShader->InitRender(irs)==INITRENDERRESULT_OK) { 
+		TexInit = TRUE;
+		return INIT_SAMPLER_RESULT_OK; //OK
+	}else{ 
+		err = INIT_SAMPLER_RESULT_NO_INITRENDER;
+	}
 	texShader->FreeRender();
 	return err;
 }
 //-------------------------------------------------------------------------------------------------
 inline Sampler::Sampler()
 {
-	texShader		= NULL;
+	texShader		= nullptr;
 	TexInit			= FALSE;
 	offsetX			= 1.0;
 	offsetY			= 1.0;
 	lenX			= 1.0;
 	lenY			= 1.0;
 	//--------------- VolumeData -----------------
-	cd.vd =	 VolumeData::Alloc(); if (!cd.vd) {VolumeData::Free(cd.vd);  return;}
-	cd.vd->version		= 1;  //LONG
-	cd.vd->fps			= 25; //LONG
+	//vd.Assign()
+	//cd.vd =	 VolumeData::Alloc(); 
+	if (!vd) { return; } //! VolumeData is null !
+	cd.vd = vd;
+	cd.vd->version		= 1;  //Int32
+	cd.vd->fps			= 25; //Int32
 	cd.vd->ambient		= Vector(0.5);//0.0;
-	cd.vd->time			= 0;  //Real
+	cd.vd->time			= 0;  //Float
 	cd.vd->bumpn		= Vector(0.0,1.0,0.0);
 	cd.vd->back_delta	= Vector(0.0);
-	cd.vd->global_mip	= 1.0; //Real
+	cd.vd->global_mip	= 1.0; //Float
 	cd.vd->orign		= Vector(0.0,1.0,0.0);
 	cd.vd->n			= Vector(0.0,1.0,0.0);
 	cd.vd->dispn		= Vector(0.0,1.0,0.0);
 	cd.vd->delta		= Vector(0.0);
-	cd.vd->dist			= 0.0; //Real
+	cd.vd->dist			= 0.0; //Float
 	cd.vd->lhit			= RayHitID();
-	cd.vd->cosc			= 1.0; //Real Angle
+	cd.vd->cosc			= 1.0; //Float Angle
 	cd.vd->ddu			= Vector(1.0,0.0,0.0);
 	cd.vd->ddv			= Vector(0.0,1.0,0.0);
-	cd.vd->tray			= NULL; //TRay
-	cd.vd->rray			= NULL; //RRay
-	cd.vd->ray			= NULL; //Ray
-	cd.vd->xlight		= NULL; //RayLight
+	cd.vd->tray			= nullptr; //TRay
+	cd.vd->rray			= nullptr; //RRay
+	cd.vd->ray			= nullptr; //Ray
+	cd.vd->xlight		= nullptr; //RayLight
 	//---------------- TexData ------------------
-	tex	= TexData::Alloc(); if (!tex) {VolumeData::Free(cd.vd);TexData::Free(tex);  return;}
+	//tex.Assign( TexData::Alloc() ); //! Assign() is a dangerous method please use Reset() instate !
+	if (!tex) { return; } //! TexData is null !
 	tex->Init();	
 	tex->proj		= P_UVW;
 	tex->texflag	= TEX_TILE;
@@ -185,50 +219,53 @@ inline Sampler::Sampler()
 	tex->oy			= offsetY;
 	cd.vd->tex		= tex;
 	//---------------- RayObject -----------------
-	rop = AllocRayObject(0); if (!rop) return; 
-	rop->link		  = NULL;
-	rop->texture_link = NULL;
+	rop = AllocRayObject(0); 
+	if (!rop) { return; } //! RayObject is null !
+	rop->link		  = nullptr;
+	rop->texture_link = nullptr;
 	rop->visibility	= 1.0;
 	rop->pcnt		= 0;
-	rop->padr		= NULL;
+	rop->padr		= nullptr;
 	rop->vcnt		= 0;
-	rop->vadr		= NULL;
+	rop->vadr		= nullptr;
 	rop->texcnt		= 0;
-	rop->texadr		= NULL;
-	rop->uvwadr		= NULL;
-	rop->rsadr		= NULL;
+	rop->texadr		= nullptr;
+	rop->uvwadr		= nullptr;
+	rop->rsadr		= nullptr;
 	cd.vd->op		= rop;
 	//---------------- RenderStruct -----------------
-	irs = gNew(InitRenderStruct);
+	//irs = gNew(InitRenderStruct);
 }
 //-------------------------------------------------------------------------------------------------
 inline void Sampler::Free()
 {
-	if (texShader){  if (TexInit) texShader->FreeRender();  }
+	if (texShader){ 
+		if (TexInit){ texShader->FreeRender(); }
+	}
 	TexInit = FALSE;
 }
 //-------------------------------------------------------------------------------------------------
 inline Sampler::~Sampler(void)
 {
 	Free();
-	if (tex) TexData::Free(tex);
-	if (cd.vd)  VolumeData::Free(cd.vd);
+	//if (tex) TexData::Free(tex);
+	if (cd.vd){  VolumeData::Free(cd.vd); }
 	FreeRayObject(rop);
-	gDelete(irs);
+	//gDelete(irs);
 }
 //-------------------------------------------------------------------------------------------------
-inline Vector Sampler::AverageColor(LONG num_samples)
+inline Vector Sampler::AverageColor(Int32 num_samples)
 {
-	const LONG random_seed = 43;
-	const Real scale3d = 50.0;
+	const Int32 random_seed = 43;
+	const Float scale3d = 50.0;
 	
 	Random rnd; rnd.Init(random_seed);
-	Vector ave_color = 0.0;
-	Real cnt = 0.0;
+	Vector ave_color = Vector(0.0);
+	Float cnt = 0.0;
 	
 	Vector pos3d; //3d coordinates for 3D shader.
 	Vector uv; //UVW coordinates for all other shaders.
-	for(LONG i=0; i < num_samples; ++i){
+	for(Int32 i=0; i < num_samples; ++i){
 		uv = Vector(rnd.Get01(),rnd.Get01(),0.0);
 		pos3d = Vector(rnd.Get11(),rnd.Get11(),rnd.Get11()) * scale3d;
 		const Vector color = Sample3D(pos3d, uv);  
@@ -238,4 +275,69 @@ inline Vector Sampler::AverageColor(LONG num_samples)
 	
 	return ave_color;
 }
+
+//#####################################################################################################
+///					Examples
+//#####################################################################################################
+
+//#include "C4DPrintPublic.h"
+//#include "c4d_misc.h"
+// ----------------------------------------------------------------------------------------------------
+Bool SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
+{
+	if(! obj->IsInstanceOf(Opolygon)) if (!obj) return FALSE; //Not a polygon Object 
+	PolygonObject *polyo = ToPoly(obj);
+
+	const Int32   pcnt = polyo->GetPointCount();
+	const Vector *padr = polyo->GetPointR();
+	const Int32	  vcnt = polyo->GetPolygonCount();
+	const CPolygon *vadr = polyo->GetPolygonR();
+
+	UVWTag *uvw_tag = (UVWTag*)polyo->GetTag(Tuvw); if (!uvw_tag) return FALSE;
+	const Int32 uv_cnt    = uvw_tag->GetDataCount();
+	ConstUVWHandle uv_handle = uvw_tag->GetDataAddressR();
+	if(uv_cnt != vcnt)  return FALSE; //Wrong UVS count !
+
+
+	Sampler smpl;
+	const INIT_SAMPLER_RESULT init_res = smpl.Init(polyo,CHANNEL_COLOR);
+	if(init_res != INIT_SAMPLER_RESULT_OK) return FALSE;
+
+	struct Colors {
+		Colors() : sampled(false) {}
+		Vector col;
+		Bool   sampled;
+	};
+	maxon::BaseArray<Colors>	colors;
+	colors.Resize(pcnt);
+
+	/// Sample using vertex position and uv.
+	UVWStruct uvw;
+	for(Int32 c=0; c<vcnt; ++c) {
+		const CPolygon &cp = vadr[c];
+		uvw_tag->Get(uv_handle,c,uvw);
+		{ //a
+			Colors &ca = colors[cp.a];
+			if(!ca.sampled){ ca.col = smpl.Sample3D(padr[cp.a],uvw.a); ca.sampled = true;  }
+		}
+		{ //b
+			Colors &cb = colors[cp.b];
+			if(!cb.sampled){ cb.col = smpl.Sample3D(padr[cp.b],uvw.b); cb.sampled = true; 	}
+		}
+		{ //c
+			Colors &cc = colors[cp.c];
+			if(!cc.sampled){ cc.col = smpl.Sample3D(padr[cp.c],uvw.c); cc.sampled = true; 	}
+		}
+		if(cp.c!=cp.d) { //d
+			Colors &cd = colors[cp.d];
+			if(!cd.sampled){ cd.col = smpl.Sample3D(padr[cp.d],uvw.d); cd.sampled = true; 	}
+		}
+	}
+
+	//print result 
+	for(Int32 i=0; i<pcnt; ++i)	{
+		print(i,colors[i].col,colors[i].sampled);
+	}
+}
+
 #endif//_SAMPLER_REMO_H_
