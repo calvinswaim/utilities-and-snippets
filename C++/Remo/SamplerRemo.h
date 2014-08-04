@@ -112,6 +112,31 @@ inline Vector Sampler::Sample3D(const Vector &p, const Vector &uv, Float time)
 	cd.p			= uv;
 	return texShader->Sample(&cd);
 }
+// ----------------------------------------------------------------------------------------------------
+inline Bool ReadTextureTag(TextureTag *textag, TexData *tex)
+{	
+	if(textag==nullptr) return FALSE;
+	if(tex==nullptr) return FALSE;
+
+	//Get Texture Data
+	BaseContainer*		texdata = textag->GetDataInstance();
+	const Bool			tex_tile = texdata->GetBool(TEXTURETAG_TILE);
+	const Bool			tex_seam = texdata->GetBool(TEXTURETAG_SEAMLESS);
+
+	tex->Init();
+	//tex->mp		= mat;//<<POINTER>> ???
+	tex->m			= textag->GetMl();
+	tex->im			= !tex->m; //matrix inverse
+	tex->proj		= texdata->GetInt32(TEXTURETAG_PROJECTION); 
+	tex->texflag	= (tex_tile)?TEX_TILE:0;tex->texflag += (tex_seam)?TEX_MIRROR:0;
+	tex->side		= texdata->GetInt32(TEXTURETAG_SIDE);
+	tex->lenx		= texdata->GetFloat(TEXTURETAG_LENGTHX);
+	tex->leny		= texdata->GetFloat(TEXTURETAG_LENGTHY);
+	tex->ox			= texdata->GetFloat(TEXTURETAG_OFFSETX)+EPSILON;
+	tex->oy			= texdata->GetFloat(TEXTURETAG_OFFSETY)+EPSILON;
+
+	return TRUE;
+}
 //-------------------------------------------------------------------------------------------------
 inline INIT_SAMPLER_RESULT Sampler::Init(BaseObject *obj,Int32 chnr,Float time)
 {
@@ -119,6 +144,11 @@ inline INIT_SAMPLER_RESULT Sampler::Init(BaseObject *obj,Int32 chnr,Float time)
 	BaseDocument *doc = obj->GetDocument(); if (!doc) return INIT_SAMPLER_RESULT_WRONG_PARAM;
 	TextureTag* textag = (TextureTag*)obj->GetTag(Ttexture);  if (!textag) return INIT_SAMPLER_RESULT_WRONG_PARAM;
 	BaseMaterial *mat = textag->GetMaterial(); 	if(!mat) return INIT_SAMPLER_RESULT_NO_MATERIAL;//no Material
+	ReadTextureTag(textag,tex);
+	lenX     = tex->lenx;
+	lenY     = tex->leny;
+	offsetX  = tex->ox	;
+	offsetY  = tex->oy	;
 	return Init(mat,chnr,time,doc,obj);
 }
 //-------------------------------------------------------------------------------------------------
@@ -126,6 +156,11 @@ inline INIT_SAMPLER_RESULT Sampler::Init(TextureTag *textag,Int32 chnr,Float tim
 {
 	if(!textag) return INIT_SAMPLER_RESULT_WRONG_PARAM;
 	BaseMaterial *mat = textag->GetMaterial(); 	if(!mat) return INIT_SAMPLER_RESULT_NO_MATERIAL;//no Material
+	ReadTextureTag(textag,tex);
+	lenX     = tex->lenx;
+	lenY     = tex->leny;
+	offsetX  = tex->ox	;
+	offsetY  = tex->oy	;
 	return Init(mat,chnr,time,doc,op);
 }
 //-------------------------------------------------------------------------------------------------
@@ -519,10 +554,10 @@ Int32 SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
 			uvw_tag->Get(uv_handle,c,uvw); }
 		else{ 
 			//Not really tested code, Please contribute fixes !
-			smpl.ProjectPoint(padr[cp.a],n, &uvw.a);
-			smpl.ProjectPoint(padr[cp.b],n, &uvw.b);
-			smpl.ProjectPoint(padr[cp.c],n, &uvw.c);
-			if(cp.c!=cp.d) smpl.ProjectPoint(padr[cp.d],n, &uvw.d);
+			smpl.ProjectPoint(padr[cp.a],n, &uvw.a); //print(uvw.a);
+			smpl.ProjectPoint(padr[cp.b],n, &uvw.b); //print(uvw.b);
+			smpl.ProjectPoint(padr[cp.c],n, &uvw.c); //print(uvw.c);
+			if(cp.c!=cp.d){ smpl.ProjectPoint(padr[cp.d],n, &uvw.d); }
 		}
 		{ //a
 			Colors &ca = colors[cp.a];
