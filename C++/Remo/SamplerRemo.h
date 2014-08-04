@@ -71,6 +71,11 @@ public:
  
 	//return average color of the shader
 	Vector AverageColor(Int32 num_samples = 128);
+
+	Bool ProjectPoint(const Vector &p, const Vector &n, Vector *uv);
+
+	VolumeData* GetVolumeData() { return vd; }
+	TexData*    GetTexData() { return tex; }
  
 	void Free();
 private:
@@ -275,17 +280,208 @@ inline Vector Sampler::AverageColor(Int32 num_samples)
 	
 	return ave_color;
 }
+// ----------------------------------------------------------------------------------------------------
+Bool Sampler::ProjectPoint(const Vector &p, const Vector &n, Vector *uv)
+{
+	Float lenxinv=0.0,lenyinv=0.0;
+	if (tex->lenx!=0.0) lenxinv = 1.0/tex->lenx;
+	if (tex->leny!=0.0) lenyinv = 1.0/tex->leny;
+
+	switch (tex->proj)
+	{
+	case P_VOLUMESHADER:
+		{
+			*uv = p * tex->im;
+			return true;
+		}
+
+	case P_SPHERICAL: default:
+		{
+			Vector d = p * tex->im;
+			Float sq = Sqrt(d.x*d.x + d.z*d.z);
+			if (sq==0.0)
+			{
+				uv->x = 0.0;
+				if (d.y>0.0)
+					uv->y = +0.5;
+				else
+					uv->y = -0.5;
+			}
+			else
+			{
+				uv->x = ACos(d.x/sq)/PI2;
+				if (d.z<0.0) uv->x = 1.0-uv->x;
+
+				uv->x -= tex->ox;
+				if (tex->lenx>0.0 && uv->x<0.0)
+					uv->x += 1.0;
+				else if (tex->lenx<0.0 && uv->x>0.0)
+					uv->x -= 1.0;
+				uv->x *= lenxinv;
+				uv->y = ATan(d.y/sq)/PI;
+			}
+			uv->y = -(uv->y+tex->oy)*lenyinv;
+			break;
+		}
+
+	case P_SHRINKWRAP:
+		{
+			Vector d = p * tex->im;
+			Float   sn,cs,sq = Sqrt(d.x*d.x + d.z*d.z);
+
+			if (sq==0.0)
+			{
+				uv->x = 0.0;
+				if (d.y>0.0)
+					uv->y = 0.0;
+				else
+					uv->y = 1.0;
+			}
+			else
+			{
+				uv->x = ACos(d.x/sq)/PI2;
+				if (d.z<0.0) uv->x = 1.0-uv->x;
+				uv->y = 0.5-ATan(d.y/sq)/PI;
+			}
+
+			SinCos(uv->x*PI2,sn,cs);
+
+			uv->x = (0.5 + 0.5*cs*uv->y - tex->ox)*lenxinv;
+			uv->y = (0.5 + 0.5*sn*uv->y - tex->oy)*lenyinv;
+			break;
+		}
+
+	case P_CYLINDRICAL:
+		{
+			Vector d = p * tex->im;
+			Float sq = Sqrt(d.x*d.x + d.z*d.z);
+			if (sq==0.0)
+				uv->x = 0.0;
+			else
+			{
+				uv->x = ACos(d.x/sq)/PI2;
+				if (d.z<0.0) uv->x = 1.0-uv->x;
+
+				uv->x -= tex->ox;
+				if (tex->lenx>0.0 && uv->x<0.0)
+					uv->x += 1.0;
+				else if (tex->lenx<0.0 && uv->x>0.0)
+					uv->x -= 1.0;
+				uv->x *= lenxinv;
+			}
+			uv->y = -(d.y*0.5+tex->oy)*lenyinv;
+			break;
+		}
+
+	case P_FLAT: case P_SPATIAL:
+		{
+			Vector d = p * tex->im;
+			uv->x =  (d.x*0.5-tex->ox)*lenxinv;
+			uv->y = -(d.y*0.5+tex->oy)*lenyinv;
+			break;
+		}
+
+	case P_CUBIC:
+		{
+			Vector d = p * tex->im;
+			Vector v = n ^ tex->im; 
+			Int32   dir;
+
+			if (Abs(v.x)>Abs(v.y))
+			{
+				if (Abs(v.x)>Abs(v.z))
+					dir = 0; 
+				else
+					dir = 2; 
+			}
+			else
+			{
+				if (Abs(v.y)>Abs(v.z))
+					dir = 1; 
+				else
+					dir = 2; 
+			}
+
+			switch (dir)
+			{
+			case 0: // x axis
+				{
+					if (v.x<0.0)
+						uv->x = (-d.z*0.5-tex->ox)*lenxinv;
+					else
+						uv->x = ( d.z*0.5-tex->ox)*lenxinv;
+
+					uv->y = -(d.y*0.5+tex->oy)*lenyinv;
+					break;
+				}
+
+			case 1:  // y axis
+				{
+					if (v.y<0.0)
+						uv->y = ( d.z*0.5-tex->oy)*lenyinv;
+					else
+						uv->y = (-d.z*0.5-tex->oy)*lenyinv;
+
+					uv->x = (d.x*0.5-tex->ox)*lenxinv;
+					break;
+				}
+
+			case 2: // z axis
+				{
+					if (v.z<0.0)
+						uv->x = ( d.x*0.5-tex->ox)*lenxinv;
+					else
+						uv->x = (-d.x*0.5-tex->ox)*lenxinv;
+
+					uv->y = -(d.y*0.5+tex->oy)*lenyinv;
+					break;
+				}
+			}
+
+			break;
+		}
+
+	case P_FRONTAL:
+		{
+			RayParameter *param=vd->GetRayParameter();
+
+			Float ox=0.0,oy=0.0,ax=param->xres,ay=param->yres;
+			Int32 curr_x,curr_y,scl;
+			vd->GetXY(&curr_x,&curr_y,&scl);
+			uv->x = ((Float(curr_x)/Float(scl)-ox)/ax - tex->ox)*lenxinv;
+			uv->y = ((Float(curr_y)/Float(scl)-ox)/ay - tex->oy)*lenyinv;
+			break;
+		}
+
+	case P_UVW:
+		{
+			/*const RayHitID& lhit,*/ /*Int32 lhit,*/ 
+			/*
+			RayObject *op = lhit.GetObject(vd); //RayObject *op = vd->ID_to_Obj(lhit,nullptr);
+			if (op && tex->uvwind<op->uvwcnt && op->uvwadr[tex->uvwind])
+				*uv=vd->GetPointUVW(tex,lhit,p);
+			else
+				uv->x = uv->y = 0.0;
+			*/
+			break;
+		}
+	}//switch
+
+	if (tex->texflag&TEX_TILE)
+		return true;
+	else
+		return uv->x>=0.0 && uv->x<=1.0 && uv->y>=0.0 && uv->y<=1.0;
+}
 
 //#####################################################################################################
 ///					Examples
 //#####################################################################################################
-
 //#include "C4DPrintPublic.h"
 //#include "c4d_misc.h"
 // ----------------------------------------------------------------------------------------------------
-Bool SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
+Int32 SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
 {
-	if(! obj->IsInstanceOf(Opolygon)) if (!obj) return FALSE; //Not a polygon Object 
+	if(! obj->IsInstanceOf(Opolygon)) if (!obj) return -11; //Not a polygon Object 
 	PolygonObject *polyo = ToPoly(obj);
 
 	const Int32   pcnt = polyo->GetPointCount();
@@ -293,15 +489,19 @@ Bool SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
 	const Int32	  vcnt = polyo->GetPolygonCount();
 	const CPolygon *vadr = polyo->GetPolygonR();
 
-	UVWTag *uvw_tag = (UVWTag*)polyo->GetTag(Tuvw); if (!uvw_tag) return FALSE;
-	const Int32 uv_cnt    = uvw_tag->GetDataCount();
-	ConstUVWHandle uv_handle = uvw_tag->GetDataAddressR();
-	if(uv_cnt != vcnt)  return FALSE; //Wrong UVS count !
+	UVWTag *uvw_tag = (UVWTag*)polyo->GetTag(Tuvw); //if (!uvw_tag) return -12;
+	Int32 uv_cnt  = 0;
+	ConstUVWHandle uv_handle = nullptr;
+	if(uvw_tag!=nullptr) {
+		uv_cnt    = uvw_tag->GetDataCount();
+		uv_handle = uvw_tag->GetDataAddressR();
+		if(uv_cnt != vcnt)  return -13; //Wrong UVS count !
+	}
 
-
+	Vector n = Vector(0.0,1.0,0.0); //normal
 	Sampler smpl;
 	const INIT_SAMPLER_RESULT init_res = smpl.Init(polyo,CHANNEL_COLOR);
-	if(init_res != INIT_SAMPLER_RESULT_OK) return FALSE;
+	if(init_res != INIT_SAMPLER_RESULT_OK) return init_res;
 
 	struct Colors {
 		Colors() : sampled(false) {}
@@ -315,7 +515,15 @@ Bool SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
 	UVWStruct uvw;
 	for(Int32 c=0; c<vcnt; ++c) {
 		const CPolygon &cp = vadr[c];
-		uvw_tag->Get(uv_handle,c,uvw);
+		if(uv_handle!=nullptr){ 
+			uvw_tag->Get(uv_handle,c,uvw); }
+		else{ 
+			//Not really tested code, Please contribute fixes !
+			smpl.ProjectPoint(padr[cp.a],n, &uvw.a);
+			smpl.ProjectPoint(padr[cp.b],n, &uvw.b);
+			smpl.ProjectPoint(padr[cp.c],n, &uvw.c);
+			if(cp.c!=cp.d) smpl.ProjectPoint(padr[cp.d],n, &uvw.d);
+		}
 		{ //a
 			Colors &ca = colors[cp.a];
 			if(!ca.sampled){ ca.col = smpl.Sample3D(padr[cp.a],uvw.a); ca.sampled = true;  }
@@ -338,6 +546,8 @@ Bool SampleColorAtVertices(BaseObject *obj) //Remo: 02.08.2014
 	for(Int32 i=0; i<pcnt; ++i)	{
 		print(i,colors[i].col,colors[i].sampled);
 	}
+
+	return INIT_SAMPLER_RESULT_OK; // OK
 }
 
 #endif//_SAMPLER_REMO_H_
