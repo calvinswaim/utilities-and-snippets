@@ -223,8 +223,6 @@ inline Sampler::Sampler()
 	lenX			= 1.0;
 	lenY			= 1.0;
 	//--------------- VolumeData -----------------
-	//vd.Assign()
-	//cd.vd =	 VolumeData::Alloc(); 
 	if (!vd) { return; } //! VolumeData is null !
 	cd.vd = vd;
 	cd.vd->version		= 1;  //Int32
@@ -248,7 +246,6 @@ inline Sampler::Sampler()
 	cd.vd->ray			= nullptr; //Ray
 	cd.vd->xlight		= nullptr; //RayLight
 	//---------------- TexData ------------------
-	//tex.Assign( TexData::Alloc() ); //! Assign() is a dangerous method please use Reset() instate !
 	if (!tex) { return; } //! TexData is null !
 	tex->Init();	
 	tex->proj		= P_UVW;
@@ -273,8 +270,6 @@ inline Sampler::Sampler()
 	rop->uvwadr		= nullptr;
 	rop->rsadr		= nullptr;
 	cd.vd->op		= rop;
-	//---------------- RenderStruct -----------------
-	//irs = gNew(InitRenderStruct);
 }
 //-------------------------------------------------------------------------------------------------
 inline void Sampler::Free()
@@ -288,10 +283,9 @@ inline void Sampler::Free()
 inline Sampler::~Sampler(void)
 {
 	Free();
-	//if (tex) TexData::Free(tex);
-	if (cd.vd){  VolumeData::Free(cd.vd); }
+	//tex.Free(); //we do not need this
+	//vd.Free(); //we do not need this
 	FreeRayObject(rop);
-	//gDelete(irs);
 }
 //-------------------------------------------------------------------------------------------------
 inline Vector Sampler::AverageColor(Int32 num_samples)
